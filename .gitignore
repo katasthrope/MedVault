@@ -132,6 +132,7 @@ coverage/
 *.p12
 *.pfx
 *.pem
+/keystore/
 
 # Keep Gradle wrapper JAR even though it's a JAR
 !gradle/wrapper/gradle-wrapper.jar
