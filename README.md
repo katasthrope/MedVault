@@ -11,7 +11,8 @@ MedVault is a personal Android application for recording and monitoring health d
 - Organize health records by date
 - Notes per Record
 
-## BACKLOG
+## Backlog
+- Pipeline to build APK
 - Optional Backup ; Local/Cloud
 - Dashboard
 - Weight (?)
