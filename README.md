@@ -2,6 +2,8 @@
 
 MedVault is a personal Android application for recording and monitoring health data in one place
 
+This app is for my own personal use and features are added based on my personal needs
+
 ## Current Features
 
 - Record blood glucose levels

@@ -7,5 +7,6 @@ data class LogEntry(
     val uricAcid: Double?,
     val systolic: Int?,
     val diastolic: Int?,
-    val remark: String
+    val remark: String,
+    val tag: String? = null
 )

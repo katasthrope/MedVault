@@ -1,10 +1,13 @@
 package com.example.medvault
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -13,12 +16,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 private fun parseNumber(text: String): Double? =
     text.trim().replace(',', '.').toDoubleOrNull()
+
+private fun rangeText(v: Double?): String = v?.let { fmt(it) } ?: ""
 
 private fun problem(name: String, lowText: String, highText: String): String? {
     if (lowText.isNotBlank() && parseNumber(lowText) == null) return "$name: low is not a valid number"
@@ -38,7 +45,7 @@ private fun RangeRow(
     onHigh: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, style = MaterialTheme.typography.labelLarge)
+        Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
                 value = low,
@@ -46,6 +53,7 @@ private fun RangeRow(
                 label = { Text("Low") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
+                shape = FieldShape,
                 modifier = Modifier.weight(1f)
             )
             OutlinedTextField(
@@ -54,12 +62,14 @@ private fun RangeRow(
                 label = { Text("High") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
+                shape = FieldShape,
                 modifier = Modifier.weight(1f)
             )
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     darkTheme: Boolean,
@@ -69,75 +79,201 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val saved = remember { ThresholdStore.load(context) }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
 
-    var gluLow by remember { mutableStateOf(saved.glucose.low?.let { fmt(it) } ?: "") }
-    var gluHigh by remember { mutableStateOf(saved.glucose.high?.let { fmt(it) } ?: "") }
-    var uricLow by remember { mutableStateOf(saved.uric.low?.let { fmt(it) } ?: "") }
-    var uricHigh by remember { mutableStateOf(saved.uric.high?.let { fmt(it) } ?: "") }
-    var sysLow by remember { mutableStateOf(saved.systolic.low?.let { fmt(it) } ?: "") }
-    var sysHigh by remember { mutableStateOf(saved.systolic.high?.let { fmt(it) } ?: "") }
-    var diaLow by remember { mutableStateOf(saved.diastolic.low?.let { fmt(it) } ?: "") }
-    var diaHigh by remember { mutableStateOf(saved.diastolic.high?.let { fmt(it) } ?: "") }
+    var gluLow by remember { mutableStateOf(rangeText(saved.glucose.low)) }
+    var gluHigh by remember { mutableStateOf(rangeText(saved.glucose.high)) }
+    var uricLow by remember { mutableStateOf(rangeText(saved.uric.low)) }
+    var uricHigh by remember { mutableStateOf(rangeText(saved.uric.high)) }
+    var sysLow by remember { mutableStateOf(rangeText(saved.systolic.low)) }
+    var sysHigh by remember { mutableStateOf(rangeText(saved.systolic.high)) }
+    var diaLow by remember { mutableStateOf(rangeText(saved.diastolic.low)) }
+    var diaHigh by remember { mutableStateOf(rangeText(saved.diastolic.high)) }
 
-    Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("< Back") }
-            Spacer(Modifier.width(8.dp))
-            Text("Settings", style = MaterialTheme.typography.titleLarge)
-        }
+    var customTags by remember { mutableStateOf(TagStore.custom(context)) }
+    var newTag by remember { mutableStateOf("") }
+    var newColor by remember { mutableStateOf(TagPalette.DEFAULT_CUSTOM) }
+    var editingTag by remember { mutableStateOf<Tag?>(null) }
 
-        // ----- Appearance -----
-        Text("Appearance", style = MaterialTheme.typography.titleMedium)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("☀️")
-            Spacer(Modifier.width(8.dp))
-            Switch(checked = darkTheme, onCheckedChange = onThemeChange)
-            Spacer(Modifier.width(8.dp))
-            Text("🌙")
-        }
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
+        ScreenHeader("Settings", onBack)
 
-        Spacer(Modifier.height(16.dp))
-
-        // ----- Thresholds -----
-        Text("Thresholds", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Values below Low or above High appear in red in History. " +
-                    "Leave a field empty for no limit.",
-            style = MaterialTheme.typography.bodySmall
-        )
-
-        RangeRow("Glucose (mg/dL)", gluLow, { gluLow = it }, gluHigh, { gluHigh = it })
-        RangeRow("Uric acid (mg/dL)", uricLow, { uricLow = it }, uricHigh, { uricHigh = it })
-        RangeRow("Systolic (mmHg)", sysLow, { sysLow = it }, sysHigh, { sysHigh = it })
-        RangeRow("Diastolic (mmHg)", diaLow, { diaLow = it }, diaHigh, { diaHigh = it })
-
-        Button(
-            onClick = {
-                val error = problem("Glucose", gluLow, gluHigh)
-                    ?: problem("Uric acid", uricLow, uricHigh)
-                    ?: problem("Systolic", sysLow, sysHigh)
-                    ?: problem("Diastolic", diaLow, diaHigh)
-                if (error != null) {
-                    showMessage(error)
-                } else {
-                    ThresholdStore.save(
-                        context,
-                        Thresholds(
-                            glucose = Range(parseNumber(gluLow), parseNumber(gluHigh)),
-                            uric = Range(parseNumber(uricLow), parseNumber(uricHigh)),
-                            systolic = Range(parseNumber(sysLow), parseNumber(sysHigh)),
-                            diastolic = Range(parseNumber(diaLow), parseNumber(diaHigh))
-                        )
-                    )
-                    showMessage("Thresholds saved")
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(52.dp)
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Save thresholds")
+            // ----- Appearance -----
+            SectionCard {
+                SectionTitle("Appearance")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Theme", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Switch between light and dark",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = muted
+                        )
+                    }
+                    Text("☀️")
+                    Spacer(Modifier.width(8.dp))
+                    Switch(checked = darkTheme, onCheckedChange = onThemeChange)
+                    Spacer(Modifier.width(8.dp))
+                    Text("🌙")
+                }
+            }
+
+            // ----- Thresholds -----
+            SectionCard {
+                SectionTitle("Thresholds")
+                Text(
+                    "Values below Low or above High appear in red in History. " +
+                            "Leave a field empty for no limit. The starting values are general adult " +
+                            "reference values, so change them to the limits your doctor gave you.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted
+                )
+
+                RangeRow("Glucose (mg/dL)", gluLow, { gluLow = it }, gluHigh, { gluHigh = it })
+                RangeRow("Uric acid (mg/dL)", uricLow, { uricLow = it }, uricHigh, { uricHigh = it })
+                RangeRow("Systolic (mmHg)", sysLow, { sysLow = it }, sysHigh, { sysHigh = it })
+                RangeRow("Diastolic (mmHg)", diaLow, { diaLow = it }, diaHigh, { diaHigh = it })
+
+                PrimaryButton(
+                    text = "Save thresholds",
+                    onClick = {
+                        val error = problem("Glucose", gluLow, gluHigh)
+                            ?: problem("Uric acid", uricLow, uricHigh)
+                            ?: problem("Systolic", sysLow, sysHigh)
+                            ?: problem("Diastolic", diaLow, diaHigh)
+                        if (error != null) {
+                            showMessage(error)
+                        } else {
+                            ThresholdStore.save(
+                                context,
+                                Thresholds(
+                                    glucose = Range(parseNumber(gluLow), parseNumber(gluHigh)),
+                                    uric = Range(parseNumber(uricLow), parseNumber(uricHigh)),
+                                    systolic = Range(parseNumber(sysLow), parseNumber(sysHigh)),
+                                    diastolic = Range(parseNumber(diaLow), parseNumber(diaHigh))
+                                )
+                            )
+                            showMessage("Thresholds saved")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                SecondaryButton(
+                    text = "Reset to defaults",
+                    onClick = {
+                        val d = Thresholds.DEFAULT
+                        gluLow = rangeText(d.glucose.low);    gluHigh = rangeText(d.glucose.high)
+                        uricLow = rangeText(d.uric.low);      uricHigh = rangeText(d.uric.high)
+                        sysLow = rangeText(d.systolic.low);   sysHigh = rangeText(d.systolic.high)
+                        diaLow = rangeText(d.diastolic.low);  diaHigh = rangeText(d.diastolic.high)
+                        showMessage("Defaults filled in. Tap Save thresholds to apply.")
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // ----- Tags -----
+            SectionCard {
+                SectionTitle("Tags")
+
+                Text("Built-in", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TagStore.PRESETS.forEach { TagPill(it.name, it.colorIndex) }
+                }
+
+                Text("Your tags", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                if (customTags.isEmpty()) {
+                    Text("No custom tags yet.", style = MaterialTheme.typography.bodySmall, color = muted)
+                } else {
+                    Text(
+                        "Tap a color circle to change its color.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = muted
+                    )
+                }
+                customTags.forEach { tag ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(TagPalette.get(tag.colorIndex).base)
+                                .clickable { editingTag = tag }
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            tag.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = {
+                                TagStore.remove(context, tag.name)
+                                customTags = TagStore.custom(context)
+                                showMessage("Tag removed. Existing records keep it.")
+                            }
+                        ) {
+                            Text(
+                                "Remove",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                Text("Add a tag", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(
+                    value = newTag,
+                    onValueChange = { newTag = it },
+                    label = { Text("New tag name") },
+                    singleLine = true,
+                    shape = FieldShape,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                ColorSwatches(selected = newColor, onSelect = { newColor = it })
+                PrimaryButton(
+                    text = "Add tag",
+                    onClick = {
+                        val error = TagStore.add(context, newTag, newColor)
+                        if (error != null) {
+                            showMessage(error)
+                        } else {
+                            customTags = TagStore.custom(context)
+                            newTag = ""
+                            showMessage("Tag added")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
+    }
+
+    editingTag?.let { t ->
+        AlertDialog(
+            onDismissRequest = { editingTag = null },
+            title = { Text("Color for \"${t.name}\"") },
+            text = {
+                ColorSwatches(
+                    selected = t.colorIndex,
+                    onSelect = { idx ->
+                        TagStore.setColor(context, t.name, idx)
+                        customTags = TagStore.custom(context)
+                        editingTag = t.copy(colorIndex = idx)
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { editingTag = null }) { Text("Done") }
+            }
+        )
     }
 }

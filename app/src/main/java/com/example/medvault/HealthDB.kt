@@ -6,9 +6,22 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 class HealthDb(context: Context) :
-    SQLiteOpenHelper(context, "health.db", null, 2) {
+    SQLiteOpenHelper(context, "health.db", null, 3) {
 
+    // Current table layout (version 3)
     private val createSql = """CREATE TABLE logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts INTEGER NOT NULL,
+                glucose REAL,
+                uric REAL,
+                systolic INTEGER,
+                diastolic INTEGER,
+                remark TEXT NOT NULL,
+                tag TEXT
+            )"""
+
+    // Layout of version 2, used only when upgrading from version 1
+    private val createSqlV2 = """CREATE TABLE logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ts INTEGER NOT NULL,
                 glucose REAL,
@@ -25,12 +38,15 @@ class HealthDb(context: Context) :
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE logs RENAME TO logs_old")
-            db.execSQL(createSql)
+            db.execSQL(createSqlV2)
             db.execSQL(
                 """INSERT INTO logs (id, ts, glucose, uric, systolic, diastolic, remark)
                    SELECT id, ts, glucose, uric, systolic, diastolic, remark FROM logs_old"""
             )
             db.execSQL("DROP TABLE logs_old")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE logs ADD COLUMN tag TEXT")
         }
     }
 
@@ -41,6 +57,7 @@ class HealthDb(context: Context) :
         if (e.systolic != null) put("systolic", e.systolic) else putNull("systolic")
         if (e.diastolic != null) put("diastolic", e.diastolic) else putNull("diastolic")
         put("remark", e.remark)
+        if (e.tag != null) put("tag", e.tag) else putNull("tag")
     }
 
     fun insert(e: LogEntry) {
@@ -65,6 +82,7 @@ class HealthDb(context: Context) :
             val iSys = c.getColumnIndexOrThrow("systolic")
             val iDia = c.getColumnIndexOrThrow("diastolic")
             val iRem = c.getColumnIndexOrThrow("remark")
+            val iTag = c.getColumnIndexOrThrow("tag")
             while (c.moveToNext()) {
                 list.add(
                     LogEntry(
@@ -74,7 +92,8 @@ class HealthDb(context: Context) :
                         uricAcid = if (c.isNull(iUric)) null else c.getDouble(iUric),
                         systolic = if (c.isNull(iSys)) null else c.getInt(iSys),
                         diastolic = if (c.isNull(iDia)) null else c.getInt(iDia),
-                        remark = c.getString(iRem)
+                        remark = c.getString(iRem),
+                        tag = if (c.isNull(iTag)) null else c.getString(iTag)
                     )
                 )
             }

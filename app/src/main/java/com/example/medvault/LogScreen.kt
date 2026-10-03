@@ -4,9 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -14,9 +12,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LogScreen(
     db: HealthDb,
@@ -34,72 +34,123 @@ fun LogScreen(
     var sys by remember { mutableStateOf(existing?.systolic?.toString() ?: "") }
     var dia by remember { mutableStateOf(existing?.diastolic?.toString() ?: "") }
     var remark by remember { mutableStateOf(existing?.remark ?: "") }
+    var tag by remember { mutableStateOf(existing?.tag) }
 
-    Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("< Back") }
-            Spacer(Modifier.width(8.dp))
-            Text(if (isEdit) "Edit Log" else "New Log", style = MaterialTheme.typography.titleLarge)
-        }
+    // Built-in + custom tags (plus this record's own tag if it was since removed)
+    val tagOptions = remember {
+        val base = TagStore.all(context)
+        val own = existing?.tag
+        if (own != null && base.none { it.name == own }) base + Tag(own, TagPalette.FALLBACK) else base
+    }
 
-        Text("Date & time", style = MaterialTheme.typography.labelLarge)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(formatTime(time), modifier = Modifier.weight(1f))
-            OutlinedButton(onClick = { pickDateTime(context, time) { time = it } }) {
-                Text("Change")
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
+        ScreenHeader(if (isEdit) "Edit log" else "New log", onBack)
+
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            SectionCard {
+                SectionTitle("When")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        formatTime(time),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { pickDateTime(context, time) { time = it } }) {
+                        Text("Change", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            SectionCard {
+                SectionTitle("Readings")
+                OutlinedTextField(
+                    value = glucose,
+                    onValueChange = { glucose = it },
+                    label = { Text("Glucose") },
+                    suffix = { Text("mg/dL") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    shape = FieldShape,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = uric,
+                    onValueChange = { uric = it },
+                    label = { Text("Uric acid") },
+                    suffix = { Text("mg/dL") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    shape = FieldShape,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Blood pressure (mmHg)", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = sys,
+                        onValueChange = { sys = it },
+                        label = { Text("Systolic") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        shape = FieldShape,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = dia,
+                        onValueChange = { dia = it },
+                        label = { Text("Diastolic") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        shape = FieldShape,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Text(
+                    "Fill both systolic and diastolic, or leave both empty.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted
+                )
+            }
+
+            SectionCard {
+                SectionTitle("Tag")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tagOptions.forEach { option ->
+                        TagChip(option.name, option.colorIndex, tag == option.name) {
+                            tag = if (tag == option.name) null else option.name
+                        }
+                    }
+                }
+                Text(
+                    "Optional. Tap again to clear.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted
+                )
+            }
+
+            SectionCard {
+                SectionTitle("Remark")
+                OutlinedTextField(
+                    value = remark,
+                    onValueChange = { remark = it },
+                    label = { Text("Remark") },
+                    minLines = 3,
+                    shape = FieldShape,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 
-        OutlinedTextField(
-            value = glucose,
-            onValueChange = { glucose = it },
-            label = { Text("Glucose (mg/dL)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        OutlinedTextField(
-            value = uric,
-            onValueChange = { uric = it },
-            label = { Text("Uric acid (mg/dL)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = sys,
-                onValueChange = { sys = it },
-                label = { Text("Systolic") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
-            OutlinedTextField(
-                value = dia,
-                onValueChange = { dia = it },
-                label = { Text("Diastolic") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Text("Blood pressure in mmHg", style = MaterialTheme.typography.bodySmall)
-
-        OutlinedTextField(
-            value = remark,
-            onValueChange = { remark = it },
-            label = { Text("Remark") },
-            minLines = 3,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Button(
+        PrimaryButton(
+            text = if (isEdit) "Update" else "Save",
             onClick = {
                 val gText = glucose.trim().replace(',', '.')
                 val uText = uric.trim().replace(',', '.')
@@ -129,7 +180,8 @@ fun LogScreen(
                             uricAcid = u,
                             systolic = s,
                             diastolic = d,
-                            remark = remark.trim()
+                            remark = remark.trim(),
+                            tag = tag
                         )
                         if (isEdit) {
                             db.update(entry)
@@ -138,15 +190,14 @@ fun LogScreen(
                             db.insert(entry)
                             showMessage("Saved")
                             glucose = ""; uric = ""; sys = ""; dia = ""; remark = ""
+                            tag = null
                             time = System.currentTimeMillis()
                         }
                         onSaved()
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) {
-            Text(if (isEdit) "Update" else "Save")
-        }
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }

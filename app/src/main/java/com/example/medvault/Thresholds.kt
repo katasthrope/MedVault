@@ -13,7 +13,17 @@ data class Thresholds(
     val uric: Range,
     val systolic: Range,
     val diastolic: Range
-)
+) {
+    companion object {
+        // General adult reference values. Adjust in Settings to match your doctor's advice.
+        val DEFAULT = Thresholds(
+            glucose = Range(70.0, 140.0),
+            uric = Range(2.5, 7.0),
+            systolic = Range(90.0, 120.0),
+            diastolic = Range(60.0, 80.0)
+        )
+    }
+}
 
 object ThresholdStore {
     private fun prefs(context: Context): SharedPreferences =
@@ -24,6 +34,11 @@ object ThresholdStore {
 
     fun load(context: Context): Thresholds {
         val p = prefs(context)
+        // Use defaults only if the user has never saved thresholds
+        val everSaved = p.getBoolean("thresholds_saved", false) ||
+                p.all.keys.any { it.endsWith("_low") || it.endsWith("_high") }
+        if (!everSaved) return Thresholds.DEFAULT
+
         return Thresholds(
             glucose = Range(read(p, "glu_low"), read(p, "glu_high")),
             uric = Range(read(p, "uric_low"), read(p, "uric_high")),
@@ -41,6 +56,7 @@ object ThresholdStore {
         put("uric_low", t.uric.low);        put("uric_high", t.uric.high)
         put("sys_low", t.systolic.low);     put("sys_high", t.systolic.high)
         put("dia_low", t.diastolic.low);    put("dia_high", t.diastolic.high)
+        e.putBoolean("thresholds_saved", true)
         e.apply()
     }
 }
