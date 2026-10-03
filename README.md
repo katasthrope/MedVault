@@ -1,34 +1,31 @@
 # MedVault by Katasthrope
 
-MedVault is a personal Android application for recording and monitoring health data in one place
+MedVault is an application for recording and monitoring health data in one place. Maybe keep my entire medical record in the future.
 
-This app is for my own personal use and features are added based on my personal needs
+This app is for my own personal use and features are added based on my personal needs to solve my personal problem of not having my medical stuffs in 1 place
+
+No release yet
 
 ## Current Features
 
-- Record blood glucose levels
-- Record uric acid levels
-- Record blood pressure
-- View and track historical measurements
-- Organize health records by date
-- Notes per Record
+- Record blood glucose, uric acid, blood pressure levels
+- View records by date duration, range, tagging, or all records
+- Tagging feature & custom tags
+- Customizable threshold low & high values
+- Light & Dark theme
 
 ## Backlog
 - Pipeline to build APK
 - Optional Backup ; Local/Cloud
 - Dashboard
 - Weight (?)
-- Tagging feature
-- Fasting, before meal, 2h after meal, random glucose level
-- Threshold placeholder
 - Import Data from CSV
 - Export to CSV & JSON
 - Profile Page
 - Unit selection/conversion
-- Charts ; 7/30/90 day view
 - Heatmap(?)
 - Medication Tracking (?)
 - Medical Records
 - Lab Results
-- Create Log Summary and Export to PDF
+- Create Summary and Export to PDF
 - Full PDF export medical record
