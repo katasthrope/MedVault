@@ -8,5 +8,6 @@ data class LogEntry(
     val systolic: Int?,
     val diastolic: Int?,
     val remark: String,
-    val tag: String? = null
+    val tag: String? = null,
+    val weight: Double? = null
 )

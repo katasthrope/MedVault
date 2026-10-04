@@ -48,22 +48,14 @@ private fun RangeRow(
         Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
-                value = low,
-                onValueChange = onLow,
-                label = { Text("Low") },
+                value = low, onValueChange = onLow, label = { Text("Low") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                shape = FieldShape,
-                modifier = Modifier.weight(1f)
+                singleLine = true, shape = FieldShape, modifier = Modifier.weight(1f)
             )
             OutlinedTextField(
-                value = high,
-                onValueChange = onHigh,
-                label = { Text("High") },
+                value = high, onValueChange = onHigh, label = { Text("High") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                shape = FieldShape,
-                modifier = Modifier.weight(1f)
+                singleLine = true, shape = FieldShape, modifier = Modifier.weight(1f)
             )
         }
     }
@@ -72,6 +64,7 @@ private fun RangeRow(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
+    db: HealthDb,
     darkTheme: Boolean,
     onThemeChange: (Boolean) -> Unit,
     onBack: () -> Unit,
@@ -89,11 +82,16 @@ fun SettingsScreen(
     var sysHigh by remember { mutableStateOf(rangeText(saved.systolic.high)) }
     var diaLow by remember { mutableStateOf(rangeText(saved.diastolic.low)) }
     var diaHigh by remember { mutableStateOf(rangeText(saved.diastolic.high)) }
+    var wtLow by remember { mutableStateOf(rangeText(saved.weight.low)) }
+    var wtHigh by remember { mutableStateOf(rangeText(saved.weight.high)) }
+    var bmiLow by remember { mutableStateOf(rangeText(saved.bmi.low)) }
+    var bmiHigh by remember { mutableStateOf(rangeText(saved.bmi.high)) }
 
     var customTags by remember { mutableStateOf(TagStore.custom(context)) }
     var newTag by remember { mutableStateOf("") }
     var newColor by remember { mutableStateOf(TagPalette.DEFAULT_CUSTOM) }
     var editingTag by remember { mutableStateOf<Tag?>(null) }
+    var confirmSample by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
         ScreenHeader("Settings", onBack)
@@ -108,11 +106,7 @@ fun SettingsScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Theme", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Switch between light and dark",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = muted
-                        )
+                        Text("Switch between light and dark", style = MaterialTheme.typography.bodySmall, color = muted)
                     }
                     Text("☀️")
                     Spacer(Modifier.width(8.dp))
@@ -126,17 +120,18 @@ fun SettingsScreen(
             SectionCard {
                 SectionTitle("Thresholds")
                 Text(
-                    "Values below Low or above High appear in red in History. " +
-                            "Leave a field empty for no limit. The starting values are general adult " +
-                            "reference values, so change them to the limits your doctor gave you.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = muted
+                    "Values below Low or above High appear in red. Leave a field empty for no limit. " +
+                            "The starting values are general adult reference values, so change them to " +
+                            "the limits your doctor gave you.",
+                    style = MaterialTheme.typography.bodySmall, color = muted
                 )
 
                 RangeRow("Glucose (mg/dL)", gluLow, { gluLow = it }, gluHigh, { gluHigh = it })
                 RangeRow("Uric acid (mg/dL)", uricLow, { uricLow = it }, uricHigh, { uricHigh = it })
                 RangeRow("Systolic (mmHg)", sysLow, { sysLow = it }, sysHigh, { sysHigh = it })
                 RangeRow("Diastolic (mmHg)", diaLow, { diaLow = it }, diaHigh, { diaHigh = it })
+                RangeRow("Weight (kg)", wtLow, { wtLow = it }, wtHigh, { wtHigh = it })
+                RangeRow("BMI (kg/m²)", bmiLow, { bmiLow = it }, bmiHigh, { bmiHigh = it })
 
                 PrimaryButton(
                     text = "Save thresholds",
@@ -145,6 +140,8 @@ fun SettingsScreen(
                             ?: problem("Uric acid", uricLow, uricHigh)
                             ?: problem("Systolic", sysLow, sysHigh)
                             ?: problem("Diastolic", diaLow, diaHigh)
+                            ?: problem("Weight", wtLow, wtHigh)
+                            ?: problem("BMI", bmiLow, bmiHigh)
                         if (error != null) {
                             showMessage(error)
                         } else {
@@ -154,7 +151,9 @@ fun SettingsScreen(
                                     glucose = Range(parseNumber(gluLow), parseNumber(gluHigh)),
                                     uric = Range(parseNumber(uricLow), parseNumber(uricHigh)),
                                     systolic = Range(parseNumber(sysLow), parseNumber(sysHigh)),
-                                    diastolic = Range(parseNumber(diaLow), parseNumber(diaHigh))
+                                    diastolic = Range(parseNumber(diaLow), parseNumber(diaHigh)),
+                                    weight = Range(parseNumber(wtLow), parseNumber(wtHigh)),
+                                    bmi = Range(parseNumber(bmiLow), parseNumber(bmiHigh))
                                 )
                             )
                             showMessage("Thresholds saved")
@@ -170,6 +169,8 @@ fun SettingsScreen(
                         uricLow = rangeText(d.uric.low);      uricHigh = rangeText(d.uric.high)
                         sysLow = rangeText(d.systolic.low);   sysHigh = rangeText(d.systolic.high)
                         diaLow = rangeText(d.diastolic.low);  diaHigh = rangeText(d.diastolic.high)
+                        wtLow = rangeText(d.weight.low);      wtHigh = rangeText(d.weight.high)
+                        bmiLow = rangeText(d.bmi.low);        bmiHigh = rangeText(d.bmi.high)
                         showMessage("Defaults filled in. Tap Save thresholds to apply.")
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -179,7 +180,6 @@ fun SettingsScreen(
             // ----- Tags -----
             SectionCard {
                 SectionTitle("Tags")
-
                 Text("Built-in", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -192,11 +192,7 @@ fun SettingsScreen(
                 if (customTags.isEmpty()) {
                     Text("No custom tags yet.", style = MaterialTheme.typography.bodySmall, color = muted)
                 } else {
-                    Text(
-                        "Tap a color circle to change its color.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = muted
-                    )
+                    Text("Tap a color circle to change its color.", style = MaterialTheme.typography.bodySmall, color = muted)
                 }
                 customTags.forEach { tag ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -208,11 +204,7 @@ fun SettingsScreen(
                                 .clickable { editingTag = tag }
                         )
                         Spacer(Modifier.width(12.dp))
-                        Text(
-                            tag.name,
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Text(tag.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                         TextButton(
                             onClick = {
                                 TagStore.remove(context, tag.name)
@@ -220,23 +212,16 @@ fun SettingsScreen(
                                 showMessage("Tag removed. Existing records keep it.")
                             }
                         ) {
-                            Text(
-                                "Remove",
-                                color = MaterialTheme.colorScheme.error,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Text("Remove", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
 
                 Text("Add a tag", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
-                    value = newTag,
-                    onValueChange = { newTag = it },
+                    value = newTag, onValueChange = { newTag = it },
                     label = { Text("New tag name") },
-                    singleLine = true,
-                    shape = FieldShape,
-                    modifier = Modifier.fillMaxWidth()
+                    singleLine = true, shape = FieldShape, modifier = Modifier.fillMaxWidth()
                 )
                 ColorSwatches(selected = newColor, onSelect = { newColor = it })
                 PrimaryButton(
@@ -251,6 +236,23 @@ fun SettingsScreen(
                             showMessage("Tag added")
                         }
                     },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // ----- Sample data -----
+            SectionCard {
+                SectionTitle("Sample data")
+                Text(
+                    "Adds about 90 days of sample records with all readings, tags, and values both " +
+                            "inside and outside your thresholds. Records are marked \"Sample\" in the remark. " +
+                            "It also adds three sample medications if you have none, and sets your height to " +
+                            "170 cm if it is empty. Nothing you already have is removed.",
+                    style = MaterialTheme.typography.bodySmall, color = muted
+                )
+                SecondaryButton(
+                    text = "Populate sample",
+                    onClick = { confirmSample = true },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -271,9 +273,25 @@ fun SettingsScreen(
                     }
                 )
             },
+            confirmButton = { TextButton(onClick = { editingTag = null }) { Text("Done") } }
+        )
+    }
+
+    if (confirmSample) {
+        AlertDialog(
+            onDismissRequest = { confirmSample = false },
+            title = { Text("Add sample data?") },
+            text = { Text("Sample records will be added next to your own. You can delete them later from History with Select all.") },
             confirmButton = {
-                TextButton(onClick = { editingTag = null }) { Text("Done") }
-            }
+                TextButton(
+                    onClick = {
+                        confirmSample = false
+                        val n = SampleData.populate(context, db)
+                        showMessage("Added $n sample records")
+                    }
+                ) { Text("Add", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { confirmSample = false }) { Text("Cancel") } }
         )
     }
 }

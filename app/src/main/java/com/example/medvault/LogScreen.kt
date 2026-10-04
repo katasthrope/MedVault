@@ -27,16 +27,18 @@ fun LogScreen(
 ) {
     val context = LocalContext.current
     val isEdit = existing != null
+    val heightCm = remember { ProfileStore.load(context).heightCm }
+    val thresholds = remember { ThresholdStore.load(context) }
 
     var time by remember { mutableLongStateOf(existing?.timestamp ?: System.currentTimeMillis()) }
     var glucose by remember { mutableStateOf(existing?.glucose?.let { fmt(it) } ?: "") }
     var uric by remember { mutableStateOf(existing?.uricAcid?.let { fmt(it) } ?: "") }
     var sys by remember { mutableStateOf(existing?.systolic?.toString() ?: "") }
     var dia by remember { mutableStateOf(existing?.diastolic?.toString() ?: "") }
+    var weight by remember { mutableStateOf(existing?.weight?.let { fmt(it) } ?: "") }
     var remark by remember { mutableStateOf(existing?.remark ?: "") }
     var tag by remember { mutableStateOf(existing?.tag) }
 
-    // Built-in + custom tags (plus this record's own tag if it was since removed)
     val tagOptions = remember {
         val base = TagStore.all(context)
         val own = existing?.tag
@@ -44,6 +46,8 @@ fun LogScreen(
     }
 
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val liveWeight = weight.trim().replace(',', '.').toDoubleOrNull()
+    val liveBmi = bmiOf(liveWeight, heightCm)
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
         ScreenHeader(if (isEdit) "Edit log" else "New log", onBack)
@@ -70,51 +74,58 @@ fun LogScreen(
             SectionCard {
                 SectionTitle("Readings")
                 OutlinedTextField(
-                    value = glucose,
-                    onValueChange = { glucose = it },
-                    label = { Text("Glucose") },
-                    suffix = { Text("mg/dL") },
+                    value = glucose, onValueChange = { glucose = it },
+                    label = { Text("Glucose") }, suffix = { Text("mg/dL") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = FieldShape,
-                    modifier = Modifier.fillMaxWidth()
+                    singleLine = true, shape = FieldShape, modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = uric,
-                    onValueChange = { uric = it },
-                    label = { Text("Uric acid") },
-                    suffix = { Text("mg/dL") },
+                    value = uric, onValueChange = { uric = it },
+                    label = { Text("Uric acid") }, suffix = { Text("mg/dL") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = FieldShape,
-                    modifier = Modifier.fillMaxWidth()
+                    singleLine = true, shape = FieldShape, modifier = Modifier.fillMaxWidth()
                 )
                 Text("Blood pressure (mmHg)", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
-                        value = sys,
-                        onValueChange = { sys = it },
+                        value = sys, onValueChange = { sys = it },
                         label = { Text("Systolic") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = FieldShape,
-                        modifier = Modifier.weight(1f)
+                        singleLine = true, shape = FieldShape, modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
-                        value = dia,
-                        onValueChange = { dia = it },
+                        value = dia, onValueChange = { dia = it },
                         label = { Text("Diastolic") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = FieldShape,
-                        modifier = Modifier.weight(1f)
+                        singleLine = true, shape = FieldShape, modifier = Modifier.weight(1f)
                     )
                 }
                 Text(
                     "Fill both systolic and diastolic, or leave both empty.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = muted
+                    style = MaterialTheme.typography.bodySmall, color = muted
                 )
+                OutlinedTextField(
+                    value = weight, onValueChange = { weight = it },
+                    label = { Text("Weight") }, suffix = { Text("kg") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true, shape = FieldShape, modifier = Modifier.fillMaxWidth()
+                )
+                if (weight.isNotBlank()) {
+                    if (liveBmi != null) {
+                        val out = thresholds.bmi.isOut(liveBmi)
+                        Text(
+                            "BMI ${Metric.BMI.display(liveBmi)} kg/m²",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (out) MaterialTheme.colorScheme.error else muted
+                        )
+                    } else if (heightCm == null) {
+                        Text(
+                            "Set your height in Profile to see BMI.",
+                            style = MaterialTheme.typography.bodySmall, color = muted
+                        )
+                    }
+                }
             }
 
             SectionCard {
@@ -129,22 +140,15 @@ fun LogScreen(
                         }
                     }
                 }
-                Text(
-                    "Optional. Tap again to clear.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = muted
-                )
+                Text("Optional. Tap again to clear.", style = MaterialTheme.typography.bodySmall, color = muted)
             }
 
             SectionCard {
                 SectionTitle("Remark")
                 OutlinedTextField(
-                    value = remark,
-                    onValueChange = { remark = it },
-                    label = { Text("Remark") },
-                    minLines = 3,
-                    shape = FieldShape,
-                    modifier = Modifier.fillMaxWidth()
+                    value = remark, onValueChange = { remark = it },
+                    label = { Text("Remark") }, minLines = 3,
+                    shape = FieldShape, modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -154,8 +158,10 @@ fun LogScreen(
             onClick = {
                 val gText = glucose.trim().replace(',', '.')
                 val uText = uric.trim().replace(',', '.')
+                val wText = weight.trim().replace(',', '.')
                 val g = gText.toDoubleOrNull()
                 val u = uText.toDoubleOrNull()
+                val w = wText.toDoubleOrNull()
                 val s = sys.trim().toIntOrNull()
                 val d = dia.trim().toIntOrNull()
                 val sysEmpty = sys.isBlank()
@@ -166,10 +172,12 @@ fun LogScreen(
                         showMessage("Glucose is not a valid number")
                     uText.isNotEmpty() && u == null ->
                         showMessage("Uric acid is not a valid number")
+                    wText.isNotEmpty() && (w == null || w <= 0.0) ->
+                        showMessage("Weight is not a valid number")
                     sysEmpty != diaEmpty ->
                         showMessage("Fill both systolic and diastolic, or leave both empty")
-                    g == null && u == null && sysEmpty && diaEmpty ->
-                        showMessage("Fill at least one: glucose, uric acid, or blood pressure")
+                    g == null && u == null && w == null && sysEmpty && diaEmpty ->
+                        showMessage("Fill at least one: glucose, uric acid, blood pressure or weight")
                     !sysEmpty && (s == null || d == null) ->
                         showMessage("Blood pressure must be whole numbers")
                     else -> {
@@ -181,7 +189,8 @@ fun LogScreen(
                             systolic = s,
                             diastolic = d,
                             remark = remark.trim(),
-                            tag = tag
+                            tag = tag,
+                            weight = w
                         )
                         if (isEdit) {
                             db.update(entry)
@@ -189,7 +198,7 @@ fun LogScreen(
                         } else {
                             db.insert(entry)
                             showMessage("Saved")
-                            glucose = ""; uric = ""; sys = ""; dia = ""; remark = ""
+                            glucose = ""; uric = ""; sys = ""; dia = ""; weight = ""; remark = ""
                             tag = null
                             time = System.currentTimeMillis()
                         }

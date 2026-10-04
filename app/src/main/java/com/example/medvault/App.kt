@@ -51,7 +51,19 @@ fun App(db: HealthDb, darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                     onBack = { screen = "home" },
                     onEdit = { editing = it; screen = "edit" }
                 )
+                "dashboard" -> DashboardScreen(db = db, onBack = { screen = "home" })
+                "medication" -> MedicationScreen(
+                    db = db,
+                    onBack = { screen = "home" },
+                    showMessage = showMessage
+                )
+                "profile" -> ProfileScreen(
+                    db = db,
+                    onBack = { screen = "home" },
+                    showMessage = showMessage
+                )
                 "settings" -> SettingsScreen(
+                    db = db,
                     darkTheme = darkTheme,
                     onThemeChange = onThemeChange,
                     onBack = { screen = "home" },
@@ -59,8 +71,11 @@ fun App(db: HealthDb, darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                 )
                 else -> HomeScreen(
                     onSettings = { screen = "settings" },
+                    onProfile = { screen = "profile" },
                     onLog = { screen = "log" },
-                    onView = { screen = "view" }
+                    onView = { screen = "view" },
+                    onDashboard = { screen = "dashboard" },
+                    onMedication = { screen = "medication" }
                 )
             }
         }

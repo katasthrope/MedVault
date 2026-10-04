@@ -15,7 +15,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -26,15 +25,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -44,74 +38,6 @@ private val dayNumFormat = SimpleDateFormat("dd", Locale.getDefault())
 private val monthFormat = SimpleDateFormat("MMM", Locale.getDefault())
 private val yearFormat = SimpleDateFormat("yyyy", Locale.getDefault())
 private val clockFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-private val shortDateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-
-private val DURATIONS = listOf(7, 14, 30, 60, 90)
-
-private fun startOfDay(ms: Long, daysBack: Int = 0): Long {
-    val c = Calendar.getInstance()
-    c.timeInMillis = ms
-    c.set(Calendar.HOUR_OF_DAY, 0)
-    c.set(Calendar.MINUTE, 0)
-    c.set(Calendar.SECOND, 0)
-    c.set(Calendar.MILLISECOND, 0)
-    c.add(Calendar.DAY_OF_YEAR, -daysBack)
-    return c.timeInMillis
-}
-
-private fun endOfDay(ms: Long): Long {
-    val c = Calendar.getInstance()
-    c.timeInMillis = ms
-    c.set(Calendar.HOUR_OF_DAY, 23)
-    c.set(Calendar.MINUTE, 59)
-    c.set(Calendar.SECOND, 59)
-    c.set(Calendar.MILLISECOND, 999)
-    return c.timeInMillis
-}
-
-@Composable
-private fun mutedColor() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-
-@Composable
-private fun flagged(out: Boolean): SpanStyle =
-    if (out) SpanStyle(color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-    else SpanStyle(fontWeight = FontWeight.SemiBold)
-
-@Composable
-private fun valueText(text: String, out: Boolean): AnnotatedString {
-    val style = flagged(out)
-    return buildAnnotatedString { withStyle(style) { append(text) } }
-}
-
-// ---------- Reading tile (label, value, unit) ----------
-@Composable
-private fun MetricTile(
-    label: String,
-    unit: String,
-    value: AnnotatedString?,
-    out: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val bg = if (out) MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
-    val muted = mutedColor()
-
-    Column(
-        modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(bg)
-            .padding(horizontal = 8.dp, vertical = 8.dp)
-    ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
-        Spacer(Modifier.height(2.dp))
-        if (value != null) {
-            Text(value, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-        } else {
-            Text("–", style = MaterialTheme.typography.titleMedium, color = muted)
-        }
-        Text(unit, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
-    }
-}
 
 @Composable
 private fun SelectDot(selected: Boolean) {
@@ -141,6 +67,7 @@ private fun SelectDot(selected: Boolean) {
 private fun EntryBlock(
     e: LogEntry,
     thresholds: Thresholds,
+    heightCm: Double?,
     tagColors: Map<String, Int>,
     selecting: Boolean,
     selected: Boolean,
@@ -148,27 +75,6 @@ private fun EntryBlock(
     onLongClick: () -> Unit
 ) {
     val muted = mutedColor()
-
-    val gOut = e.glucose?.let { thresholds.glucose.isOut(it) } ?: false
-    val uOut = e.uricAcid?.let { thresholds.uric.isOut(it) } ?: false
-    val sysOut = e.systolic?.let { thresholds.systolic.isOut(it.toDouble()) } ?: false
-    val diaOut = e.diastolic?.let { thresholds.diastolic.isOut(it.toDouble()) } ?: false
-
-    val glucoseText = e.glucose?.let { valueText(fmt(it), gOut) }
-    val uricText = e.uricAcid?.let { valueText(fmt(it), uOut) }
-
-    val sysStyle = flagged(sysOut)
-    val diaStyle = flagged(diaOut)
-    val plainStyle = flagged(false)
-    val bpText: AnnotatedString? =
-        if (e.systolic != null && e.diastolic != null) {
-            buildAnnotatedString {
-                withStyle(sysStyle) { append("${e.systolic}") }
-                withStyle(plainStyle) { append("/") }
-                withStyle(diaStyle) { append("${e.diastolic}") }
-            }
-        } else null
-
     val tagIndex: Int? = e.tag?.let { tagColors[it] ?: TagPalette.FALLBACK }
     val barColor =
         if (tagIndex != null) TagPalette.get(tagIndex).base else MaterialTheme.colorScheme.outlineVariant
@@ -185,7 +91,6 @@ private fun EntryBlock(
             .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Colored bar = the record's tag color
         Box(
             Modifier
                 .width(4.dp)
@@ -195,7 +100,6 @@ private fun EntryBlock(
         )
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Time left, selection dot right
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     clockFormat.format(Date(e.timestamp)),
@@ -206,14 +110,8 @@ private fun EntryBlock(
                 if (selecting) SelectDot(selected)
             }
 
-            // Three reading tiles
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetricTile("Glucose", "mg/dL", glucoseText, gOut, Modifier.weight(1f))
-                MetricTile("Uric acid", "mg/dL", uricText, uOut, Modifier.weight(1f))
-                MetricTile("Blood pressure", "mmHg", bpText, sysOut || diaOut, Modifier.weight(1.4f))
-            }
+            ReadingTiles(e, thresholds, heightCm)
 
-            // Tag, then remark
             if (e.tag != null) {
                 TagPill(e.tag, tagIndex ?: TagPalette.FALLBACK)
             }
@@ -232,6 +130,7 @@ private fun EntryBlock(
 private fun DayCard(
     dayEntries: List<LogEntry>,
     thresholds: Thresholds,
+    heightCm: Double?,
     tagColors: Map<String, Int>,
     selecting: Boolean,
     selectedIds: Set<Long>,
@@ -249,7 +148,6 @@ private fun DayCard(
         border = BorderStroke(1.dp, line)
     ) {
         Column(Modifier.padding(10.dp)) {
-            // Day header: date badge + weekday
             Row(Modifier.fillMaxWidth().padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(
                     Modifier
@@ -289,14 +187,13 @@ private fun DayCard(
             dayEntries.forEachIndexed { index, e ->
                 Spacer(Modifier.height(6.dp))
                 if (index > 0) {
-                    Box(
-                        Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(1.dp).background(line)
-                    )
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(1.dp).background(line))
                     Spacer(Modifier.height(6.dp))
                 }
                 EntryBlock(
                     e = e,
                     thresholds = thresholds,
+                    heightCm = heightCm,
                     tagColors = tagColors,
                     selecting = selecting,
                     selected = e.id in selectedIds,
@@ -308,175 +205,27 @@ private fun DayCard(
     }
 }
 
-// ---------- Filter panel ----------
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun FilterPanel(
-    tags: List<Tag>,
-    tagFilter: String?,
-    onTag: (String?) -> Unit,
-    durationDays: Int?,
-    onDuration: (Int) -> Unit,
-    rangeFrom: Long?,
-    rangeTo: Long?,
-    onFrom: (Long) -> Unit,
-    onTo: (Long) -> Unit,
-    onAllTime: () -> Unit,
-    onClearAll: () -> Unit
-) {
-    val context = LocalContext.current
-    val noDateFilter = durationDays == null && rangeFrom == null && rangeTo == null
-
-    SectionCard {
-        SectionTitle("Tag")
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TagChip("All", null, tagFilter == null) { onTag(null) }
-            tags.forEach { t ->
-                TagChip(t.name, t.colorIndex, tagFilter == t.name) {
-                    onTag(if (tagFilter == t.name) null else t.name)
-                }
-            }
-        }
-
-        SectionTitle("Duration")
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TagChip("All time", null, noDateFilter) { onAllTime() }
-            DURATIONS.forEach { d ->
-                TagChip("$d days", null, durationDays == d) { onDuration(d) }
-            }
-        }
-
-        SectionTitle("Date range")
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(
-                onClick = { pickDate(context, rangeFrom ?: System.currentTimeMillis(), onFrom) },
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    if (rangeFrom != null) "From ${shortDateFormat.format(Date(rangeFrom))}" else "From date",
-                    maxLines = 1
-                )
-            }
-            OutlinedButton(
-                onClick = { pickDate(context, rangeTo ?: System.currentTimeMillis(), onTo) },
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    if (rangeTo != null) "To ${shortDateFormat.format(Date(rangeTo))}" else "To date",
-                    maxLines = 1
-                )
-            }
-        }
-        Text(
-            "Choosing a duration clears the date range, and the other way round.",
-            style = MaterialTheme.typography.bodySmall,
-            color = mutedColor()
-        )
-
-        TextButton(onClick = onClearAll) {
-            Text("Clear all filters", fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(
-    title: String,
-    message: String,
-    action: (@Composable () -> Unit)? = null
-) {
-    Column(
-        Modifier.fillMaxWidth().padding(vertical = 40.dp, horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text("🗒️", style = MaterialTheme.typography.headlineLarge)
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(
-            message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = mutedColor(),
-            textAlign = TextAlign.Center
-        )
-        action?.invoke()
-    }
-}
-
 @Composable
 fun ViewScreen(db: HealthDb, onBack: () -> Unit, onEdit: (LogEntry) -> Unit) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val thresholds = remember { ThresholdStore.load(context) }
+    val heightCm = remember { ProfileStore.load(context).heightCm }
     val tagColors = remember { TagStore.colorMap(context) }
 
     var entries by remember { mutableStateOf(db.getAll()) } // newest -> oldest
 
-    // Selection
     var selecting by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var confirmDelete by remember { mutableStateOf(false) }
 
-    // Filters
     var showFilters by remember { mutableStateOf(false) }
-    var tagFilter by remember { mutableStateOf<String?>(null) }
-    var durationDays by remember { mutableStateOf<Int?>(null) }
-    var rangeFrom by remember { mutableStateOf<Long?>(null) }
-    var rangeTo by remember { mutableStateOf<Long?>(null) }
-
-    // Tags to offer in the filter: known tags + any tag still used by records
-    val filterTags = remember(entries) {
-        val known = TagStore.all(context)
-        val extra = entries.mapNotNull { it.tag }.distinct()
-            .filter { n -> known.none { it.name == n } }
-            .map { Tag(it, TagPalette.FALLBACK) }
-        known + extra
-    }
-
-    val filtered = remember(entries, tagFilter, durationDays, rangeFrom, rangeTo) {
-        val dd = durationDays
-        val from: Long? =
-            if (dd != null) startOfDay(System.currentTimeMillis(), dd - 1) else rangeFrom
-        val to: Long? =
-            if (dd != null) null else rangeTo?.let { endOfDay(it) }
-        entries.filter { e ->
-            (tagFilter == null || e.tag == tagFilter) &&
-                    (from == null || e.timestamp >= from) &&
-                    (to == null || e.timestamp <= to)
-        }
-    }
-
+    val f = remember { FilterState() }
+    val filterTags = remember(entries) { tagsForFilter(context, entries) }
+    val filtered = remember(entries, f.tag, f.durationDays, f.rangeFrom, f.rangeTo) { f.apply(entries) }
     val days = remember(filtered) {
         filtered.groupBy { dayKeyFormat.format(Date(it.timestamp)) }.toList()
     }
-
-    val dateActive = durationDays != null || rangeFrom != null || rangeTo != null
-    val activeCount = (if (tagFilter != null) 1 else 0) + (if (dateActive) 1 else 0)
-
-    val summary = buildList {
-        tagFilter?.let { add("Tag: $it") }
-        val dd = durationDays
-        if (dd != null) {
-            add("Last $dd days")
-        } else {
-            val f = rangeFrom
-            val t = rangeTo
-            if (f != null && t != null) {
-                add("${shortDateFormat.format(Date(f))} – ${shortDateFormat.format(Date(t))}")
-            } else if (f != null) {
-                add("From ${shortDateFormat.format(Date(f))}")
-            } else if (t != null) {
-                add("Until ${shortDateFormat.format(Date(t))}")
-            }
-        }
-    }.joinToString(" · ")
 
     fun exitSelection() {
         selecting = false
@@ -487,20 +236,12 @@ fun ViewScreen(db: HealthDb, onBack: () -> Unit, onEdit: (LogEntry) -> Unit) {
         selectedIds = if (e.id in selectedIds) selectedIds - e.id else selectedIds + e.id
     }
 
-    fun clearAllFilters() {
-        tagFilter = null
-        durationDays = null
-        rangeFrom = null
-        rangeTo = null
-    }
-
     BackHandler(enabled = selecting) { exitSelection() }
 
     val allSelected = filtered.isNotEmpty() && filtered.all { it.id in selectedIds }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
         if (selecting) {
-            // ----- Selection top bar -----
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -524,42 +265,16 @@ fun ViewScreen(db: HealthDb, onBack: () -> Unit, onEdit: (LogEntry) -> Unit) {
                 }
             }
         } else {
-            // ----- Normal top bar -----
             ScreenHeader("History", onBack)
-
             if (entries.isNotEmpty()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val label = "Filters" +
-                            (if (activeCount > 0) " ($activeCount)" else "") +
-                            (if (showFilters) "  ▴" else "  ▾")
-                    TagChip(label, null, activeCount > 0 || showFilters) { showFilters = !showFilters }
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        if (activeCount > 0) "${filtered.size} of ${entries.size} records"
-                        else "${entries.size} records",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = mutedColor()
-                    )
-                }
-                if (activeCount > 0 && !showFilters) {
-                    Text(
-                        summary,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                } else if (!showFilters) {
-                    Text(
-                        "Hold a record to select it for edit or delete",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = mutedColor(),
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
+                FilterHeader(
+                    state = f,
+                    expanded = showFilters,
+                    onToggle = { showFilters = !showFilters },
+                    shown = filtered.size,
+                    total = entries.size,
+                    hint = "Hold a record to select it for edit or delete"
+                )
             }
         }
 
@@ -572,39 +287,7 @@ fun ViewScreen(db: HealthDb, onBack: () -> Unit, onEdit: (LogEntry) -> Unit) {
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 if (showFilters && !selecting) {
-                    item(key = "filters") {
-                        FilterPanel(
-                            tags = filterTags,
-                            tagFilter = tagFilter,
-                            onTag = { tagFilter = it },
-                            durationDays = durationDays,
-                            onDuration = { d ->
-                                durationDays = d
-                                rangeFrom = null
-                                rangeTo = null
-                            },
-                            rangeFrom = rangeFrom,
-                            rangeTo = rangeTo,
-                            onFrom = { d ->
-                                rangeFrom = d
-                                durationDays = null
-                                val t = rangeTo
-                                if (t != null && t < d) rangeTo = d
-                            },
-                            onTo = { d ->
-                                rangeTo = d
-                                durationDays = null
-                                val f = rangeFrom
-                                if (f != null && f > d) rangeFrom = d
-                            },
-                            onAllTime = {
-                                durationDays = null
-                                rangeFrom = null
-                                rangeTo = null
-                            },
-                            onClearAll = { clearAllFilters() }
-                        )
-                    }
+                    item(key = "filters") { FilterPanel(f, filterTags) }
                 }
 
                 if (filtered.isEmpty()) {
@@ -612,9 +295,7 @@ fun ViewScreen(db: HealthDb, onBack: () -> Unit, onEdit: (LogEntry) -> Unit) {
                         EmptyState(
                             "No records match",
                             "Try a different tag or date range.",
-                            action = {
-                                SecondaryButton("Clear filters", onClick = { clearAllFilters() })
-                            }
+                            action = { SecondaryButton("Clear filters", onClick = { f.clear() }) }
                         )
                     }
                 }
@@ -623,6 +304,7 @@ fun ViewScreen(db: HealthDb, onBack: () -> Unit, onEdit: (LogEntry) -> Unit) {
                     DayCard(
                         dayEntries = dayEntries,
                         thresholds = thresholds,
+                        heightCm = heightCm,
                         tagColors = tagColors,
                         selecting = selecting,
                         selectedIds = selectedIds,
@@ -641,7 +323,6 @@ fun ViewScreen(db: HealthDb, onBack: () -> Unit, onEdit: (LogEntry) -> Unit) {
             }
         }
 
-        // ----- Bottom action bar (only while selecting) -----
         if (selecting) {
             Row(
                 Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
@@ -681,16 +362,10 @@ fun ViewScreen(db: HealthDb, onBack: () -> Unit, onEdit: (LogEntry) -> Unit) {
                         exitSelection()
                     }
                 ) {
-                    Text(
-                        "Delete",
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
-            }
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )
     }
 }
