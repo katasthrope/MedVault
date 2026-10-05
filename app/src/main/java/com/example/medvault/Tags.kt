@@ -23,6 +23,11 @@ object TagPalette {
     const val FALLBACK = 7         // Gray
 
     fun get(index: Int): TagColor = colors[index.coerceIn(0, colors.lastIndex)]
+
+    fun indexOf(name: String): Int {
+        val i = colors.indexOfFirst { it.name.equals(name.trim(), ignoreCase = true) }
+        return if (i < 0) DEFAULT_CUSTOM else i
+    }
 }
 
 /** Readable color for tag text/dots in the current (light or dark) theme. */
@@ -35,23 +40,17 @@ fun tagAccent(index: Int): Color {
 
 data class Tag(val name: String, val colorIndex: Int)
 
-object TagStore {
-    val PRESETS = listOf(
-        Tag("Fasting", 0),
-        Tag("Before meal", 1),
-        Tag("2h after meal", 2),
-        Tag("Random", 7)
-    )
+private const val SEP = "|"
 
-    private const val KEY = "custom_tags"
-    private const val SEP = "|"
+/** A set of built-in tags plus custom tags saved under [key]. */
+class TagCatalog(val presets: List<Tag>, private val key: String) {
 
     private fun prefs(context: Context) =
         context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     // Stored as one line per tag: name|colorIndex (older lines without a color get teal)
     fun custom(context: Context): List<Tag> {
-        val raw = prefs(context).getString(KEY, "") ?: ""
+        val raw = prefs(context).getString(key, "") ?: ""
         return raw.split("\n").mapNotNull { line ->
             val t = line.trim()
             if (t.isEmpty()) {
@@ -65,14 +64,14 @@ object TagStore {
         }
     }
 
-    fun all(context: Context): List<Tag> = PRESETS + custom(context)
+    fun all(context: Context): List<Tag> = presets + custom(context)
 
     fun colorMap(context: Context): Map<String, Int> =
         all(context).associate { it.name to it.colorIndex }
 
     private fun saveCustom(context: Context, list: List<Tag>) {
         prefs(context).edit()
-            .putString(KEY, list.joinToString("\n") { "${it.name}$SEP${it.colorIndex}" })
+            .putString(key, list.joinToString("\n") { "${it.name}$SEP${it.colorIndex}" })
             .apply()
     }
 
@@ -96,3 +95,30 @@ object TagStore {
         })
     }
 }
+
+/** Tags for readings (Log, History, Dashboard). */
+val TagStore = TagCatalog(
+    listOf(
+        Tag("Fasting", 0),
+        Tag("Before meal", 1),
+        Tag("2h after meal", 2),
+        Tag("Random", 7)
+    ),
+    "custom_tags"
+)
+
+/** Separate tags for medical records. */
+val DocTagStore = TagCatalog(
+    listOf(
+        Tag("Lab test", 0),
+        Tag("USG", 2),
+        Tag("MRI", 4),
+        Tag("X-ray", 7),
+        Tag("Doctor's note", 3),
+        Tag("Diagnosis", 1),
+        Tag("Prescription", 5),
+        Tag("Invoice", 6),
+        Tag("Other", 7)
+    ),
+    "custom_doc_tags"
+)

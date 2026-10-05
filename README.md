@@ -29,3 +29,5 @@ No release yet
 - Lab Results
 - Create Summary and Export to PDF
 - Full PDF export medical record
+- Lifestyle? (smoking, no exercise, etc)
+- SOS button to ambulance & emergency contact

@@ -69,7 +69,9 @@ fun HomeScreen(
     onLog: () -> Unit,
     onView: () -> Unit,
     onDashboard: () -> Unit,
-    onMedication: () -> Unit
+    onMedication: () -> Unit,
+    onDocuments: () -> Unit,
+    onInsurance: () -> Unit
 ) {
     val context = LocalContext.current
     val profile = remember { ProfileStore.load(context) }
@@ -121,6 +123,10 @@ fun HomeScreen(
         ActionCard("📊", "Dashboard", "Latest, min and max, charts and heatmaps", false, onDashboard)
         Spacer(Modifier.height(14.dp))
         ActionCard("💊", "Medication", "What you are currently taking", false, onMedication)
+        Spacer(Modifier.height(14.dp))
+        ActionCard("📁", "Medical records", "Lab tests, scans, notes, invoices", false, onDocuments)
+        Spacer(Modifier.height(14.dp))
+        ActionCard("🛡️", "Insurance", "Your policies and e-cards", false, onInsurance)
         Spacer(Modifier.height(8.dp))
     }
 }

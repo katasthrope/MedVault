@@ -1,10 +1,7 @@
 package com.example.medvault
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -16,7 +13,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -61,7 +57,6 @@ private fun RangeRow(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     db: HealthDb,
@@ -87,11 +82,9 @@ fun SettingsScreen(
     var bmiLow by remember { mutableStateOf(rangeText(saved.bmi.low)) }
     var bmiHigh by remember { mutableStateOf(rangeText(saved.bmi.high)) }
 
-    var customTags by remember { mutableStateOf(TagStore.custom(context)) }
-    var newTag by remember { mutableStateOf("") }
-    var newColor by remember { mutableStateOf(TagPalette.DEFAULT_CUSTOM) }
-    var editingTag by remember { mutableStateOf<Tag?>(null) }
     var confirmSample by remember { mutableStateOf(false) }
+    var confirmRemoveSample by remember { mutableStateOf(false) }
+    var confirmMyData by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
         ScreenHeader("Settings", onBack)
@@ -178,76 +171,17 @@ fun SettingsScreen(
             }
 
             // ----- Tags -----
-            SectionCard {
-                SectionTitle("Tags")
-                Text("Built-in", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TagStore.PRESETS.forEach { TagPill(it.name, it.colorIndex) }
-                }
-
-                Text("Your tags", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                if (customTags.isEmpty()) {
-                    Text("No custom tags yet.", style = MaterialTheme.typography.bodySmall, color = muted)
-                } else {
-                    Text("Tap a color circle to change its color.", style = MaterialTheme.typography.bodySmall, color = muted)
-                }
-                customTags.forEach { tag ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(TagPalette.get(tag.colorIndex).base)
-                                .clickable { editingTag = tag }
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(tag.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                        TextButton(
-                            onClick = {
-                                TagStore.remove(context, tag.name)
-                                customTags = TagStore.custom(context)
-                                showMessage("Tag removed. Existing records keep it.")
-                            }
-                        ) {
-                            Text("Remove", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-
-                Text("Add a tag", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    value = newTag, onValueChange = { newTag = it },
-                    label = { Text("New tag name") },
-                    singleLine = true, shape = FieldShape, modifier = Modifier.fillMaxWidth()
-                )
-                ColorSwatches(selected = newColor, onSelect = { newColor = it })
-                PrimaryButton(
-                    text = "Add tag",
-                    onClick = {
-                        val error = TagStore.add(context, newTag, newColor)
-                        if (error != null) {
-                            showMessage(error)
-                        } else {
-                            customTags = TagStore.custom(context)
-                            newTag = ""
-                            showMessage("Tag added")
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            TagManagerCard("Reading tags", TagStore, showMessage)
+            TagManagerCard("Document tags", DocTagStore, showMessage)
 
             // ----- Sample data -----
             SectionCard {
                 SectionTitle("Sample data")
                 Text(
-                    "Adds about 90 days of sample records with all readings, tags, and values both " +
-                            "inside and outside your thresholds. Records are marked \"Sample\" in the remark. " +
-                            "It also adds three sample medications if you have none, and sets your height to " +
-                            "170 cm if it is empty. Nothing you already have is removed.",
+                    "Fills the app with 180 days of sample readings (inside and outside your thresholds, " +
+                            "with tags), 12 medical records with generated pages, 2 insurances with e-cards, " +
+                            "and 3 medications if you have none. It sets your height to 170 cm if empty. " +
+                            "Tapping it again replaces the earlier sample data. Your own items are not touched.",
                     style = MaterialTheme.typography.bodySmall, color = muted
                 )
                 SecondaryButton(
@@ -255,43 +189,82 @@ fun SettingsScreen(
                     onClick = { confirmSample = true },
                     modifier = Modifier.fillMaxWidth()
                 )
+                SecondaryButton(
+                    text = "Remove sample data",
+                    onClick = { confirmRemoveSample = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // ----- My data -----
+            SectionCard {
+                SectionTitle("My data")
+                Text(
+                    "Loads your own data from the template file MyData.kt in the project: profile, " +
+                            "extra tags, readings, medication, insurance and medical record entries. " +
+                            "Edit the file in Android Studio, run the app, then tap the button. " +
+                            "Items already in the app are skipped, so it is safe to tap more than once.",
+                    style = MaterialTheme.typography.bodySmall, color = muted
+                )
+                PrimaryButton(
+                    text = "Populate my data",
+                    onClick = { confirmMyData = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
-    }
-
-    editingTag?.let { t ->
-        AlertDialog(
-            onDismissRequest = { editingTag = null },
-            title = { Text("Color for \"${t.name}\"") },
-            text = {
-                ColorSwatches(
-                    selected = t.colorIndex,
-                    onSelect = { idx ->
-                        TagStore.setColor(context, t.name, idx)
-                        customTags = TagStore.custom(context)
-                        editingTag = t.copy(colorIndex = idx)
-                    }
-                )
-            },
-            confirmButton = { TextButton(onClick = { editingTag = null }) { Text("Done") } }
-        )
     }
 
     if (confirmSample) {
         AlertDialog(
             onDismissRequest = { confirmSample = false },
             title = { Text("Add sample data?") },
-            text = { Text("Sample records will be added next to your own. You can delete them later from History with Select all.") },
+            text = { Text("Earlier sample data is replaced. Your own records, documents and insurances stay.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         confirmSample = false
-                        val n = SampleData.populate(context, db)
-                        showMessage("Added $n sample records")
+                        showMessage(SampleData.populate(context, db))
                     }
                 ) { Text("Add", fontWeight = FontWeight.Bold) }
             },
             dismissButton = { TextButton(onClick = { confirmSample = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (confirmRemoveSample) {
+        AlertDialog(
+            onDismissRequest = { confirmRemoveSample = false },
+            title = { Text("Remove sample data?") },
+            text = { Text("Only the sample records, documents, insurances and sample medications are deleted.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRemoveSample = false
+                        showMessage(SampleData.remove(context, db))
+                    }
+                ) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemoveSample = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (confirmMyData) {
+        AlertDialog(
+            onDismissRequest = { confirmMyData = false },
+            title = { Text("Populate my data?") },
+            text = { Text("Adds everything in MyData.kt that is not already in the app. Nothing is deleted.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmMyData = false
+                        showMessage(MyData.populate(context, db))
+                    }
+                ) { Text("Populate", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { confirmMyData = false }) { Text("Cancel") } }
         )
     }
 }
